@@ -1,0 +1,7 @@
+{
+  "name": "portpass",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react-vite"
+}
