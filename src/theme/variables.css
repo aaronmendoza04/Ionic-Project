@@ -1,2 +1,275 @@
-/* For information on how to create your own theme, please refer to:
-http://ionicframework.com/docs/theming/ */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --ion-font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --ion-background-color: #060b14;
+  --ion-text-color: #f8fafc;
+  --ion-color-primary: #0ea5e9;
+  --ion-tab-bar-background: rgba(10, 18, 32, 0.88);
+  --ion-tab-bar-border-color: rgba(255, 255, 255, 0.08);
+  --ion-tab-bar-color: #64748b;
+  --ion-tab-bar-color-selected: #38bdf8;
+}
+
+/* Custom Dark Maritime Mesh Background */
+ion-content {
+  --background: radial-gradient(circle at 15% 10%, rgba(14, 165, 233, 0.14) 0%, transparent 45%),
+                radial-gradient(circle at 85% 85%, rgba(16, 185, 129, 0.1) 0%, transparent 45%),
+                #060b14 !important;
+}
+
+/* Floating Glass Bottom Tab Bar */
+ion-tab-bar {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  height: 68px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+}
+
+ion-tab-button {
+  --ripple-color: #38bdf8;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+ion-tab-button.tab-selected {
+  transform: translateY(-3px);
+}
+
+/* Modern App Shell Container (Looks great on both Web & Mobile) */
+.port-container {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+}
+
+/* Frosted Glass Cards */
+.glass-card {
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  border-color: rgba(56, 189, 248, 0.25);
+  transform: translateY(-2px);
+}
+
+/* Sleek Modern Inputs */
+.modern-field {
+  margin-bottom: 16px;
+}
+
+.modern-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.modern-input {
+  width: 100%;
+  background: rgba(6, 11, 20, 0.75);
+  border: 1.5px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 14px 16px;
+  color: #f8fafc;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.25s ease;
+  outline: none;
+}
+
+.modern-input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.15);
+  background: rgba(15, 23, 42, 0.9);
+}
+
+/* Gradient & Action Buttons */
+.btn-glow {
+  width: 100%;
+  background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 14px;
+  padding: 15px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 10px 25px -5px rgba(14, 165, 233, 0.45);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.btn-glow:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 15px 30px -5px rgba(14, 165, 233, 0.65);
+}
+
+.btn-glow:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-outline-glass {
+  width: 100%;
+  background: rgba(56, 189, 248, 0.07);
+  border: 1.5px dashed rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  border-radius: 14px;
+  padding: 14px;
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-outline-glass:hover {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: #38bdf8;
+}
+
+/* Glowing Status Pills */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.status-pending {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.status-approved {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+}
+
+.status-inside {
+  background: rgba(14, 165, 233, 0.18);
+  color: #38bdf8;
+  border: 1px solid rgba(14, 165, 233, 0.45);
+  box-shadow: 0 0 15px rgba(14, 165, 233, 0.25);
+}
+
+.status-rejected {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+/* Boarding Pass QR Ticket Stub */
+.qr-boarding-pass {
+  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+  color: #0f172a;
+  border-radius: 18px;
+  padding: 20px;
+  margin-top: 18px;
+  position: relative;
+  text-align: center;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+  animation: scalePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Keyframe Animations */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scalePop {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes laserScan {
+  0% { top: 8%; opacity: 0.4; }
+  50% { top: 88%; opacity: 1; }
+  100% { top: 8%; opacity: 0.4; }
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.4; }
+}
+
+.animate-enter {
+  animation: fadeSlideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  display: inline-block;
+  animation: pulseDot 2s infinite;
+}
+
+/* Scanner Viewfinder Frame */
+.scanner-frame {
+  width: 220px;
+  height: 220px;
+  margin: 16px auto 24px;
+  border-radius: 24px;
+  border: 2px solid rgba(56, 189, 248, 0.35);
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.1) 0%, rgba(6, 11, 20, 0.8) 100%);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 30px rgba(14, 165, 233, 0.15);
+}
+
+.scanner-laser {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #38bdf8, #10b981, #38bdf8, transparent);
+  box-shadow: 0 0 12px 2px #38bdf8;
+  animation: laserScan 2.6s ease-in-out infinite;
+}

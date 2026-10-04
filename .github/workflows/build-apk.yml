@@ -17,7 +17,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Set up Java 21 for Android Gradle
@@ -25,28 +25,32 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
+          cache: 'gradle'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --legacy-peer-deps
 
       - name: Create .env file from GitHub Secret
         run: |
           echo "${{ secrets.SUPABASE_ENV }}" > .env
 
-      - name: Build Ionic Web Assets
-        run: npm run build
+      - name: Build Ionic Web Assets (Vite)
+        run: npx vite build
 
       - name: Sync Capacitor Android
         run: npx cap sync android
 
+      - name: Grant execute permission for gradlew
+        working-directory: ./android
+        run: chmod +x gradlew
+
       - name: Build Debug APK with Gradle
         working-directory: ./android
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload Compiled APK as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: PortPass-Debug-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
