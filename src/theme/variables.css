@@ -5,7 +5,7 @@
   --ion-background-color: #060b14;
   --ion-text-color: #f8fafc;
   --ion-color-primary: #0ea5e9;
-  --ion-tab-bar-background: rgba(10, 18, 32, 0.88);
+  --ion-tab-bar-background: rgba(10, 18, 32, 0.92);
   --ion-tab-bar-border-color: rgba(255, 255, 255, 0.08);
   --ion-tab-bar-color: #64748b;
   --ion-tab-bar-color-selected: #38bdf8;
@@ -18,11 +18,12 @@ ion-content {
                 #060b14 !important;
 }
 
-/* Floating Glass Bottom Tab Bar */
+/* Floating Glass Bottom Tab Bar (Protected from Android bottom gesture bar) */
 ion-tab-bar {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  height: 68px;
+  height: calc(64px + max(env(safe-area-inset-bottom, 0px), 16px));
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
 }
@@ -39,11 +40,26 @@ ion-tab-button.tab-selected {
   transform: translateY(-3px);
 }
 
-/* Modern App Shell Container (Looks great on both Web & Mobile) */
+/* Modern App Shell Container (Guaranteed clearance below Android status bar & punch-hole) */
 .port-container {
   max-width: 680px;
   margin: 0 auto;
-  padding: 20px 16px 40px;
+  padding-top: calc(max(env(safe-area-inset-top, 0px), 42px) + 16px);
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-bottom: 48px;
+}
+
+/* Clean spacing when viewed on a Laptop / Desktop Browser */
+@media (min-width: 768px) {
+  .port-container {
+    padding-top: 28px;
+  }
+
+  ion-tab-bar {
+    height: 68px;
+    padding-bottom: 0;
+  }
 }
 
 /* Frosted Glass Cards */
