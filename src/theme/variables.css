@@ -289,3 +289,305 @@ ion-tab-button.tab-selected {
   box-shadow: 0 0 12px 2px #38bdf8;
   animation: laserScan 2.6s ease-in-out infinite;
 }
+
+/* Completed (Departed) Status Pill */
+.status-completed {
+  background: rgba(139, 92, 246, 0.16);
+  color: #c084fc;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+}
+
+/* Widescreen Desktop Container for Admin Web Portal */
+.admin-wide-container {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding-top: calc(max(env(safe-area-inset-top, 0px), 42px) + 16px);
+  padding-left: 20px;
+  padding-right: 20px;
+  padding-bottom: 60px;
+}
+
+@media (min-width: 768px) {
+  .admin-wide-container {
+    padding-top: 32px;
+  }
+}
+
+.admin-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+@media (min-width: 900px) {
+  .admin-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Role Switcher Top Pill */
+.role-logout-btn {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.role-logout-btn:hover {
+  background: rgba(239, 68, 68, 0.22);
+}
+
+/* Sub-Navigation Pill Bar */
+.sub-nav-bar {
+  display: flex;
+  gap: 8px;
+  background: rgba(6, 11, 20, 0.75);
+  padding: 6px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 22px;
+  overflow-x: auto;
+}
+
+.sub-nav-btn {
+  flex: 1;
+  background: transparent;
+  color: #94a3b8;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.sub-nav-btn.active {
+  background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+  color: #ffffff;
+  box-shadow: 0 6px 16px -4px rgba(14, 165, 233, 0.5);
+}
+
+/* Metadata Tags */
+.meta-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Capacity Progress Bar */
+.berth-progress-track {
+  width: 100%;
+  height: 10px;
+  background: rgba(6, 11, 20, 0.85);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.berth-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+/* Modern Data Table */
+.port-table-wrapper {
+  overflow-x: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.port-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.port-table th {
+  background: rgba(6, 11, 20, 0.9);
+  color: #94a3b8;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.port-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+}
+
+.port-table tr:hover td {
+  background: rgba(14, 165, 233, 0.05);
+}
+
+/* Live Advisory Broadcast Banner */
+.advisory-banner {
+  border-radius: 16px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  animation: fadeSlideUp 0.4s ease;
+}
+
+.advisory-info {
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #bae6fd;
+}
+
+.advisory-warning {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  color: #fde68a;
+}
+
+.advisory-danger {
+  background: rgba(239, 68, 68, 0.16);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #fecaca;
+}
+
+/* 5-Stage Shipment Stepper */
+.stepper-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 14px 0;
+  padding: 12px;
+  background: rgba(6, 11, 20, 0.65);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.step-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  flex: 1;
+  text-align: center;
+}
+
+.step-node.done {
+  color: #34d399;
+}
+
+.step-node.current {
+  color: #38bdf8;
+}
+
+.step-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #1e293b;
+  border: 2px solid #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+.step-node.done .step-dot {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+  color: #34d399;
+}
+
+.step-node.current .step-dot {
+  background: rgba(14, 165, 233, 0.25);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+
+/* Tariff Assessment Box */
+.tariff-box {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(6, 11, 20, 0.95));
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+/* Priority Badges */
+.priority-badge {
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.priority-Express, .priority-Perishable {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.priority-Hazmat {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+}
+
+.priority-Standard {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+}
+
+/* Safety Checklist Item */
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(6, 11, 20, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.check-item.checked {
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+}
