@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   IonApp,
   IonPage,
@@ -239,6 +239,12 @@ const App: React.FC = () => {
   /* Authenticated session — held in memory only. A refresh logs out.  */
   /* ---------------------------------------------------------------- */
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setShowSplash(false), 2400);
+    return () => clearTimeout(t);
+  }, []);
 
   const [view, setView] = useState<AuthView>('login');
   const [loginMode, setLoginMode] = useState<LoginMode>('driver');
@@ -573,6 +579,16 @@ const App: React.FC = () => {
 
   return (
     <IonApp>
+      {showSplash && (
+        <div className="splash-overlay">
+          <div className="splash-logo">
+            <Ship size={56} />
+          </div>
+          <div className="splash-title">PortPass</div>
+          <div className="splash-subtitle">Maritime Logistics OS</div>
+          <div className="splash-loader"><span></span></div>
+        </div>
+      )}
       {user ? (
         renderAuthenticatedApp(user)
       ) : (

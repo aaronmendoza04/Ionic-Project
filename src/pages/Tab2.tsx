@@ -363,6 +363,17 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
             </div>
           </div>
 
+          <div className="animate-enter" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.16), rgba(14,165,233,0.14))', border: '1px solid rgba(56,189,248,0.25)', borderRadius: '20px', padding: '16px 18px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '46px', height: '46px', borderRadius: '14px', background: 'rgba(16,185,129,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#34d399', flexShrink: 0 }}>
+              <Activity size={24} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }}>Terminal Command</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>PortPass Admin Console</div>
+            </div>
+            <div className="live-dot" />
+          </div>
+
           <div className="animate-enter" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '22px' }}>
             <div className="glass-card" style={{ padding: '15px', marginBottom: 0, borderLeft: '4px solid #f59e0b' }}>
               <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700 }}>PENDING QUEUE</div>

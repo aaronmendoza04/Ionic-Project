@@ -33,7 +33,8 @@ const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
   const registeredPlates = currentDriver.registeredPlates ?? [];
 
   
-  const [subTab, setSubTab] = useState<'book' | 'active' | 'vessels' | 'history'>('book');
+  const [subTab, setSubTab] = useState<'book' | 'active' | 'vessels' | 'history' | 'profile'>('book');
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [driverName, setDriverName] = useState(currentDriver.name || '');
   const [driverPhone, setDriverPhone] = useState(currentDriver.phone || (currentDriver as any).mobile || (currentDriver as any).mobileNumber || (currentDriver as any).phone_number || '');
   const [companyName, setCompanyName] = useState(currentDriver.companyName || (currentDriver as any).company_name || (currentDriver as any).company || '');
@@ -327,7 +328,7 @@ const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
   return (
     <IonPage>
       <IonContent fullscreen>
-        <div className="port-container">
+        <div className="port-container" style={{ paddingBottom: '96px' }}>
           <div className="animate-enter" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#38bdf8', fontSize: '11px', fontWeight: 700, letterSpacing: '1px' }}>
@@ -337,7 +338,7 @@ const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
                 PortPass <span style={{ color: '#38bdf8' }}>Driver Hub</span>
               </h1>
             </div>
-            <button className="role-logout-btn" onClick={onLogout}><LogOut size={13} /> Logout</button>
+            <div />
           </div>
 
           {advisory && (
@@ -349,6 +350,17 @@ const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
               </div>
             </div>
           )}
+
+          <div className="animate-enter" style={{ background: 'linear-gradient(135deg, rgba(14,165,233,0.18), rgba(16,185,129,0.12))', border: '1px solid rgba(56,189,248,0.25)', borderRadius: '20px', padding: '16px 18px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '46px', height: '46px', borderRadius: '14px', background: 'rgba(14,165,233,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#38bdf8', flexShrink: 0 }}>
+              <Ship size={24} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }}>Welcome back</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>{currentDriver.name}</div>
+            </div>
+            <div className="live-dot" />
+          </div>
 
           <div className="animate-enter" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '18px' }}>
             <div className="glass-card stagger-1" style={{ padding: '12px', marginBottom: 0, textAlign: 'center' }}>
@@ -363,13 +375,6 @@ const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
               <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700 }}>HAULED TONNAGE</div>
               <div style={{ fontSize: '22px', fontWeight: 800, color: '#c084fc', marginTop: '2px' }}>{totalTonnage.toFixed(1)}t</div>
             </div>
-          </div>
-
-          <div className="sub-nav-bar animate-enter">
-            <button className={`sub-nav-btn ${subTab === 'book' ? 'active' : ''}`} onClick={() => setSubTab('book')}><Sparkles size={14} /> New Booking</button>
-            <button className={`sub-nav-btn ${subTab === 'active' ? 'active' : ''}`} onClick={() => setSubTab('active')}><Navigation size={14} /> Active ({activePasses.length})</button>
-            <button className={`sub-nav-btn ${subTab === 'vessels' ? 'active' : ''}`} onClick={() => setSubTab('vessels')}><Ship size={14} /> Vessels</button>
-            <button className={`sub-nav-btn ${subTab === 'history' ? 'active' : ''}`} onClick={() => setSubTab('history')}><History size={14} /> History ({pastHistory.length})</button>
           </div>
 
           {subTab === 'book' && (
@@ -535,6 +540,30 @@ const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
             </div>
           )}
 
+          {subTab === 'profile' && (
+            <div className="animate-enter">
+              <div className="glass-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '18px', background: 'rgba(14,165,233,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#38bdf8' }}>
+                    <User size={28} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '18px', fontWeight: 800 }}>{currentDriver.name}</div>
+                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>{currentDriver.licenseNumber}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gap: '10px', fontSize: '13px' }}>
+                  <div><strong style={{ color: '#64748b' }}>Mobile:</strong> {driverPhone || '—'}</div>
+                  <div><strong style={{ color: '#64748b' }}>Company:</strong> {companyName || '—'}</div>
+                  <div><strong style={{ color: '#64748b' }}>Registered Plates:</strong> {registeredPlates.join(', ') || '—'}</div>
+                </div>
+                <button onClick={() => setShowLogoutConfirm(true)} style={{ marginTop: '20px', width: '100%', background: 'rgba(239, 68, 68, 0.12)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: '12px', padding: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  <LogOut size={16} /> Logout
+                </button>
+              </div>
+            </div>
+          )}
+
           {(subTab === 'active' || subTab === 'history') && (
             (subTab === 'active' ? activePasses : pastHistory).map((apt, idx) => (
               <div key={apt.id} className="glass-card animate-enter" style={{ animationDelay: `${idx * 0.05}s`, borderColor: apt.is_approaching ? '#eab308' : 'rgba(255,255,255,0.08)' }}>
@@ -597,6 +626,28 @@ const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
             ))
           )}
         </div>
+        <div className="driver-bottom-nav">
+          <button className={`driver-nav-btn ${subTab === 'book' ? 'active' : ''}`} onClick={() => setSubTab('book')}><Sparkles size={18} /><span>Book</span></button>
+          <button className={`driver-nav-btn ${subTab === 'active' ? 'active' : ''}`} onClick={() => setSubTab('active')}><Navigation size={18} /><span>Active</span></button>
+          <button className={`driver-nav-btn ${subTab === 'vessels' ? 'active' : ''}`} onClick={() => setSubTab('vessels')}><Ship size={18} /><span>Vessels</span></button>
+          <button className={`driver-nav-btn ${subTab === 'history' ? 'active' : ''}`} onClick={() => setSubTab('history')}><History size={18} /><span>History</span></button>
+          <button className={`driver-nav-btn ${subTab === 'profile' ? 'active' : ''}`} onClick={() => setSubTab('profile')}><User size={18} /><span>Profile</span></button>
+        </div>
+
+        {showLogoutConfirm && (
+          <div onClick={() => setShowLogoutConfirm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(6,11,20,0.85)', backdropFilter: 'blur(6px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+            <div onClick={e => e.stopPropagation()} className="glass-card" style={{ maxWidth: '360px', width: '100%', textAlign: 'center' }}>
+              <LogOut size={32} color="#f87171" style={{ marginBottom: '12px' }} />
+              <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 800 }}>Log out?</h3>
+              <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '18px' }}>Are you sure you want to end your session?</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <button onClick={() => setShowLogoutConfirm(false)} style={{ background: 'rgba(100,116,139,0.2)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '12px', fontWeight: 700 }}>Cancel</button>
+                <button onClick={onLogout} style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#fff', border: 'none', borderRadius: '12px', padding: '12px', fontWeight: 700 }}>Logout</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <IonToast isOpen={!!toastMsg} message={toastMsg} duration={2800} position="top" onDidDismiss={() => setToastMsg('')} />
       </IonContent>
     </IonPage>
