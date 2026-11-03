@@ -18,18 +18,66 @@ interface Tab1Props {
 }
 
 const PORT_LAT = 13.4167;
+
+const PRICING_PLANS = [
+  { label: 'Standard RoRo - PHP 1,450', amount: 1450 },
+  { label: 'Express Priority - PHP 2,150', amount: 2150 },
+  { label: 'Heavy Cargo - PHP 3,200', amount: 3200 },
+  { label: 'Hazmat / Special - PHP 4,500', amount: 4500 },
+];
 const PORT_LNG = 121.1833;
 const GEOFENCE_KM = 5.0;
 
 const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
   const driverId = currentDriver.id;
   const registeredPlates = currentDriver.registeredPlates ?? [];
+
   
   const [subTab, setSubTab] = useState<'book' | 'active' | 'vessels' | 'history'>('book');
   const [driverName, setDriverName] = useState(currentDriver.name || '');
-  const [driverPhone, setDriverPhone] = useState(currentDriver.phone || '');
-  const [companyName, setCompanyName] = useState(currentDriver.companyName || '');
+  const [driverPhone, setDriverPhone] = useState(currentDriver.phone || (currentDriver as any).mobile || (currentDriver as any).mobileNumber || (currentDriver as any).phone_number || '');
+  const [companyName, setCompanyName] = useState(currentDriver.companyName || (currentDriver as any).company_name || (currentDriver as any).company || '');
   const [plateNumber, setPlateNumber] = useState(registeredPlates[0] || '');
+
+  useEffect(() => {
+    setDriverName(currentDriver.name || driverName);
+    const phone = currentDriver.phone || (currentDriver as any).mobile || (currentDriver as any).mobileNumber || (currentDriver as any).phone_number || '';
+    if (phone) setDriverPhone(phone);
+    const company = currentDriver.companyName || (currentDriver as any).company_name || (currentDriver as any).company || '';
+    if (company) setCompanyName(company);
+    if (registeredPlates.length > 0 && !plateNumber) setPlateNumber(registeredPlates[0]);
+
+    // Fallback: fetch profile details from local cache (saved at registration) or latest appointment.
+    const loadCachedProfile = async () => {
+      if (currentDriver.licenseNumber) {
+        try {
+          const cached = localStorage.getItem(`portpass_profile_${currentDriver.licenseNumber}`);
+          if (cached) {
+            const p = JSON.parse(cached);
+            if (p.phone && !phone) setDriverPhone(p.phone);
+            if (p.company && !company) setCompanyName(p.company);
+            if (p.plate && registeredPlates.length === 0 && !plateNumber) setPlateNumber(p.plate);
+          }
+        } catch {}
+      }
+
+      if ((!phone || !company) && currentDriver.name) {
+        const { data } = await supabase
+          .from('appointments')
+          .select('driver_phone, company_name, plate_number')
+          .eq('driver_name', currentDriver.name)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (data && data.length > 0) {
+          const row: any = data[0];
+          if (row.driver_phone && !driverPhone) setDriverPhone(row.driver_phone);
+          if (row.company_name && !companyName) setCompanyName(row.company_name);
+          if (row.plate_number && registeredPlates.length === 0 && !plateNumber) setPlateNumber(row.plate_number);
+        }
+      }
+    };
+    loadCachedProfile();
+  }, [currentDriver, plateNumber, registeredPlates]);
   const [truckType, setTruckType] = useState('10-Wheeler Wing Van');
   const [containerSeal, setContainerSeal] = useState(`SEAL-${Math.floor(10000 + Math.random() * 90000)}`);
   
@@ -42,6 +90,9 @@ const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
   const [cargoWeight, setCargoWeight] = useState('8.5');
   const [vesselName, setVesselName] = useState('MV Starlite Calapan');
   const [cargoSummary, setCargoSummary] = useState('');
+  const [pricingIndex, setPricingIndex] = useState(0);
+  const [gcashPaid, setGcashPaid] = useState(false);
+  const [gcashRef, setGcashRef] = useState('');
   
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
@@ -147,6 +198,9 @@ const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
         manifestUrl = publicUrlData.publicUrl;
       }
 
+      const selectedAmount = PRICING_PLANS[pricingIndex]?.amount ?? 1450;
+      const paymentStatus = gcashPaid ? 'Pending Verification' : 'Unpaid';
+
       const { error } = await supabase.from('appointments').insert([{
         driver_id: driverId,
         driver_name: driverName, driver_phone: driverPhone, company_name: companyName,
@@ -154,7 +208,8 @@ const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
         origin_port: originPort, destination_port: destinationPort, priority_level: priorityLevel,
         reefer_temp_c: cargoCategory.includes('Perishable') ? parseFloat(reeferTemp) : null,
         cargo_category: cargoCategory, cargo_weight_tons: parseFloat(cargoWeight) || 5.0, vessel_name: vesselName,
-        cargo_summary: cargoSummary, manifest_photo_url: manifestUrl, status: 'pending'
+        cargo_summary: cargoSummary, manifest_photo_url: manifestUrl, status: 'pending',
+        port_fee_php: selectedAmount, payment_status: paymentStatus, or_number: gcashPaid ? gcashRef : null
       }]);
 
       if (error) throw error;
@@ -163,6 +218,7 @@ const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
       setCompanyName(''); setPlateNumber(''); setCargoSummary('');
       setContainerSeal(`SEAL-${Math.floor(10000 + Math.random() * 90000)}`);
       setPhotoPreview(null); setPhotoBlob(null); setSubTab('active');
+      setGcashPaid(false); setGcashRef(''); setPricingIndex(0);
     } catch (err: any) { 
       setToastMsg(err.message || 'Submission failed.'); 
     } finally { 
@@ -349,7 +405,13 @@ const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
                 <div className="modern-field">
                   <label>Truck Type</label>
                   <select className="modern-input" value={truckType} onChange={e => setTruckType(e.target.value)}>
+                    <option>4-Wheeler Car Carrier</option>
+                    <option>6-Wheeler Truck</option>
                     <option>10-Wheeler Wing Van</option>
+                    <option>12-Wheeler Trailer</option>
+                    <option>14-Wheeler Lowbed</option>
+                    <option>16-Wheeler Heavy Hauler</option>
+                    <option>18/20-Wheeler Multi-Axle</option>
                     <option>40ft Container Trailer</option>
                     <option>Reefer Cold-Chain Truck</option>
                     <option>Heavy Tanker / Bulk Carrier</option>
@@ -401,6 +463,43 @@ const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
               </div>
 
               <div className="modern-field"><label>Cargo Manifest Summary</label><textarea className="modern-input" rows={2} value={cargoSummary} onChange={e => setCargoSummary(e.target.value)} /></div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div className="modern-field">
+                  <label>Pricing Plan (RoRo Tariff)</label>
+                  <select className="modern-input" value={pricingIndex} onChange={e => { setPricingIndex(Number(e.target.value)); setGcashPaid(false); setGcashRef(''); }}>
+                    {PRICING_PLANS.map((p, i) => <option key={i} value={i}>{p.label}</option>)}
+                  </select>
+                </div>
+                <div className="modern-field">
+                  <label>Payment Method</label>
+                  <div className="modern-input" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(6,11,20,0.6)' }}>
+                    <span style={{ color: '#38bdf8', fontWeight: 700 }}>Gcash (Sandbox)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: 'rgba(6,11,20,0.55)', border: '1px solid rgba(56,189,248,0.25)', borderRadius: '12px', padding: '12px', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 700 }}>AMOUNT DUE</span>
+                  <span style={{ fontSize: '18px', fontWeight: 800, color: '#34d399' }}>PHP {PRICING_PLANS[pricingIndex].amount.toLocaleString()}</span>
+                </div>
+                {!gcashPaid ? (
+                  <button type="button" className="btn-outline-glass" onClick={() => {
+                    const ref = `GCASH-${Math.floor(100000 + Math.random() * 900000)}`;
+                    setGcashRef(ref);
+                    setGcashPaid(true);
+                    setToastMsg(`Gcash sandbox payment successful. Ref: ${ref}`);
+                  }} style={{ width: '100%', justifyContent: 'center' }}>
+                    Pay via Gcash (Sandbox)
+                  </button>
+                ) : (
+                  <div style={{ fontSize: '12px', color: '#34d399', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Paid (Pending Admin Verification)</span>
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#38bdf8' }}>{gcashRef}</span>
+                  </div>
+                )}
+              </div>
 
               <div style={{ marginBottom: '18px' }}>
                 <button type="button" className="btn-outline-glass" onClick={takePhoto}>
@@ -460,6 +559,7 @@ const Tab1: React.FC<Tab1Props> = ({ currentDriver, onLogout }) => {
                   <span className="meta-tag"><Ship size={12} color="#38bdf8" /> {apt.vessel_name}</span>
                   <span className="meta-tag"><Scale size={12} color="#fbbf24" /> {apt.cargo_weight_tons}t</span>
                   <span className="meta-tag"><ShieldCheck size={12} color="#c084fc" /> {apt.container_seal}</span>
+                  {apt.port_fee_php && <span className="meta-tag" style={{ color: String(apt.payment_status || '').toLowerCase().includes('paid') && !String(apt.payment_status || '').toLowerCase().includes('unpaid') ? '#34d399' : '#fbbf24' }}>PHP {Number(apt.port_fee_php).toLocaleString()} | {apt.payment_status || 'Unpaid'}</span>}
                   {apt.assigned_slot && <span className="meta-tag" style={{ borderColor: 'rgba(56,189,248,0.4)', color: '#38bdf8' }}><MapPin size={12} /> {apt.assigned_berth} (Slot {apt.assigned_slot})</span>}
                 </div>
 

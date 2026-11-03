@@ -424,6 +424,13 @@ const App: React.FC = () => {
       return;
     }
 
+    try {
+      localStorage.setItem(`portpass_profile_${registration.licenseNumber.trim().toUpperCase()}`, JSON.stringify({
+        phone: registration.phone.trim(),
+        company: registration.companyName.trim(),
+        plate: registration.plate.trim().toUpperCase(),
+      }));
+    } catch {}
     setRegistration(EMPTY_REGISTRATION);
     setPin('');
     setUser(result.user);

@@ -133,6 +133,18 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
       : 'Manifest rejected.');
   };
 
+  const isPaidStatus = (status: any) => {
+    const v = String(status || '').toLowerCase();
+    return v.includes('paid') && !v.includes('unpaid') && !v.includes('pending');
+  };
+
+  const approvePayment = async (apt: any) => {
+    const ref = apt.or_number || `OR-PPA-${Math.floor(100000 + Math.random() * 900000)}`;
+    await supabase.from('appointments').update({ payment_status: 'Paid (Gcash)', or_number: ref }).eq('id', apt.id);
+    setToastMsg(`Payment approved for ${apt.plate_number}. Ref: ${ref}`);
+    loadAll();
+  };
+
   const renderAllocationMatrix = (apt: any) => {
     const mode = matrixMode;
     const target = mode === 'yard' ? activeBerthForMatrix : activeVesselForMatrix;
@@ -148,10 +160,39 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
     const lanes = buildLanes(capacity, mode === 'yard' ? YARD_SLOTS_PER_LANE : DECK_SLOTS_PER_LANE);
     const pct = Math.min(100, Math.round((committed / capacity) * 100));
 
+    // Weight-balance (RoRo deck): port (left) vs starboard (right) tonnage.
+    const incomingWeight = Number(apt.cargo_weight_tons) || 5;
+    let leftWeight = 0;
+    let rightWeight = 0;
+    if (mode === 'deck') {
+      scopeApts.filter(a => (a.status === 'approved' || a.status === 'inside') && a.assigned_slot).forEach(a => {
+        const num = parseInt(String(a.assigned_slot).replace(/[^0-9]/g, ''), 10) || 0;
+        const w = Number(a.cargo_weight_tons) || 5;
+        if (num <= 3) leftWeight += w; else rightWeight += w;
+      });
+    }
+    const isBalanceLocked = (slotNum: number) => {
+      if (mode !== 'deck') return false;
+      const self = slotNum <= 3 ? leftWeight : rightWeight;
+      const other = slotNum <= 3 ? rightWeight : leftWeight;
+      const currentDiff = Math.abs(leftWeight - rightWeight);
+      const newSelf = self + incomingWeight;
+      const newDiff = Math.abs(newSelf - other);
+      const total = newSelf + other;
+      const allowed = Math.max(5, total * 0.25);
+      // Allow placements that improve (or keep) balance; lock only if they worsen it beyond tolerance.
+      if (newDiff <= currentDiff) return false;
+      return newDiff > allowed;
+    };
+
     const pickSlot = (lane: string, slot: number) => {
       const slotId = `${lane}${slot}`;
       if (isFull && slotId !== selfHold?.slotId) {
         setToastMsg(`CAPACITY LOCK: ${target} is full (${committed}/${capacity}). Overbooking prevented.`);
+        return;
+      }
+      if (isBalanceLocked(slot)) {
+        setToastMsg(`BALANCE LOCK: this side is too heavy; slot unavailable to keep the vessel trimmed.`);
         return;
       }
       setSelectedSlotForApt(prev => ({ ...prev, [apt.id]: { slotId, lane, slot, mode, target } }));
@@ -189,6 +230,15 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
           <div className="berth-progress-track">
             <div className="berth-progress-fill" style={{ width: `${Math.max(4, pct)}%`, background: pct >= 80 ? '#ef4444' : '#0ea5e9' }} />
           </div>
+          {mode === 'deck' && (
+            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Port (Left): <strong style={{ color: '#38bdf8' }}>{leftWeight.toFixed(1)}t</strong></span>
+              <span>Starboard (Right): <strong style={{ color: '#38bdf8' }}>{rightWeight.toFixed(1)}t</strong></span>
+              <span style={{ color: Math.abs(leftWeight - rightWeight) > 5 ? '#f87171' : '#34d399', fontWeight: 700 }}>
+                {Math.abs(leftWeight - rightWeight) > 5 ? 'IMBALANCED' : 'BALANCED'}
+              </span>
+            </div>
+          )}
         </div>
 
         {isFull && (
@@ -210,14 +260,15 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
                 const isOccupied = scopeApts.some(a => a.assigned_slot === slotId && (a.status === 'approved' || a.status === 'inside'));
                 const isHeldByOther = Object.entries(selectedSlotForApt).some(([aptId, h]) => aptId !== apt.id && h.slotId === slotId && h.mode === mode && h.target === target);
                 const isSelected = selfHold?.slotId === slotId && selfHold?.mode === mode && selfHold?.target === target;
-                const cls = isOccupied ? 'slot-occupied' : isHeldByOther ? 'slot-held' : isSelected ? 'slot-selected' : isFull ? 'slot-locked' : 'slot-empty';
+                const balanceLocked = isBalanceLocked(slot);
+                const cls = isOccupied ? 'slot-occupied' : isHeldByOther ? 'slot-held' : isSelected ? 'slot-selected' : (isFull || balanceLocked) ? 'slot-locked' : 'slot-empty';
 
                 return (
                   <div
                     key={slotId}
                     className={`matrix-slot ${cls}`}
                     title={slotLabel(row.lane, slot)}
-                    onClick={() => { if (!isOccupied && !isHeldByOther) pickSlot(row.lane, slot); }}
+                    onClick={() => { if (!isOccupied && !isHeldByOther && !balanceLocked) pickSlot(row.lane, slot); else if (balanceLocked) setToastMsg('BALANCE LOCK: this side is too heavy; slot unavailable to keep the vessel trimmed.'); }}
                   >
                     {slot}
                   </div>
@@ -388,6 +439,7 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
                       <span className="meta-tag"><Ship size={12} color="#38bdf8" /> {apt.vessel_name}</span>
                       <span className="meta-tag"><Scale size={12} color="#fbbf24" /> {apt.cargo_weight_tons}t</span>
+                      <span className="meta-tag" style={{ color: isPaidStatus(apt.payment_status) ? '#34d399' : '#fbbf24' }}>PHP {apt.port_fee_php || 0} | {apt.payment_status || 'Unpaid'}</span>
                       {apt.assigned_slot && <span className="meta-tag" style={{ color: '#38bdf8' }}><MapPin size={12} /> {apt.assigned_berth} (Slot {apt.assigned_slot})</span>}
                     </div>
 
@@ -407,15 +459,29 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
 
                     {apt.status === 'pending' && (
                       <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '12px' }}>
+                          <span style={{ color: '#94a3b8', fontWeight: 700 }}>PAYMENT</span>
+                          <span style={{ fontWeight: 700, color: isPaidStatus(apt.payment_status) ? '#34d399' : '#fbbf24' }}>
+                            {apt.payment_status || 'Unpaid'} {apt.port_fee_php ? `| PHP ${Number(apt.port_fee_php).toLocaleString()}` : ''}
+                          </span>
+                        </div>
+                        {!isPaidStatus(apt.payment_status) && (
+                          <button onClick={() => approvePayment(apt)} style={{ width: '100%', marginBottom: '10px', background: 'rgba(56, 189, 248, 0.14)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: '12px', padding: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                            <Check size={16} /> Approve Payment (Gcash Sandbox)
+                          </button>
+                        )}
                         {renderAllocationMatrix(apt)}
                         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '10px', marginTop: '14px' }}>
-                          <button onClick={() => handleDecision(apt.id, 'approved')} style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '12px', padding: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                          <button onClick={() => handleDecision(apt.id, 'approved')} disabled={!isPaidStatus(apt.payment_status)} style={{ background: isPaidStatus(apt.payment_status) ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(100,116,139,0.3)', color: '#fff', border: 'none', borderRadius: '12px', padding: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', opacity: isPaidStatus(apt.payment_status) ? 1 : 0.6, cursor: isPaidStatus(apt.payment_status) ? 'pointer' : 'not-allowed' }}>
                             <Check size={17} /> Allocate Slot & Approve
                           </button>
                           <button onClick={() => handleDecision(apt.id, 'rejected')} style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: '12px', padding: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                             <X size={17} /> Reject
                           </button>
                         </div>
+                        {!isPaidStatus(apt.payment_status) && (
+                          <div style={{ marginTop: '8px', fontSize: '11px', color: '#fbbf24', textAlign: 'center' }}>Approve payment first to continue processing.</div>
+                        )}
                       </div>
                     )}
                   </div>
