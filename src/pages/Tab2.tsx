@@ -13,6 +13,7 @@ interface Tab2Props {
 
 const BERTH_OPTIONS = ['Pier 1 | RoRo Ramp A', 'Pier 2 | Bulk Freight Dock', 'Pier 3 | Cold Chain & Perishables', 'South Wharf | Heavy Container Bay'];
 const DEFAULT_MAIN_BERTH = BERTH_OPTIONS[0];
+const DEFAULT_VESSEL_NAME = 'MV Starlite Calapan';
 
 const YARD_SLOTS_PER_LANE = 5;
 const DECK_SLOTS_PER_LANE = 6;
@@ -45,6 +46,22 @@ const buildLanes = (capacity: number, perLane: number): { lane: string; slots: n
 
 const slotLabel = (lane: string, slot: number) => `Lane ${lane} - Slot ${slot}`;
 
+// Vessel berths in the live data were seeded with a bullet (U+2022) instead of
+// a pipe, so compare/display a normalized berth everywhere.
+const normalizeBerth = (value: unknown) => String(value ?? '')
+  .replace(/[\u2022\u00b7]/g, '|')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const normalizeName = (value: unknown) => String(value ?? '').trim().toLowerCase();
+
+const normalizeSlotId = (value: unknown) => String(value ?? '').trim().toUpperCase();
+
+// Deck allocations created by this screen store this marker in admin_notes.
+// It lets the yard and deck matrices ignore each other's slot IDs.
+const isDeckAllocation = (appointment: any) =>
+  String(appointment?.admin_notes || '').includes('Vessel Deck');
+
 const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [vessels, setVessels] = useState<any[]>([]);
@@ -55,7 +72,6 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
   
   const [matrixMode, setMatrixMode] = useState<MatrixMode>('yard');
   const [activeBerthForMatrix, setActiveBerthForMatrix] = useState(DEFAULT_MAIN_BERTH);
-  const [activeVesselForMatrix, setActiveVesselForMatrix] = useState('MV Starlite Calapan');
   const [selectedSlotForApt, setSelectedSlotForApt] = useState<Record<string, SlotHold>>({});
   
   const [advTitle, setAdvTitle] = useState('PPA TERMINAL OPERATIONS BULLETIN');
@@ -79,24 +95,38 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  // A temporary slot hold only belongs to a booking that is still pending.
+  // Without this cleanup, an approved booking's old hold was counted a second
+  // time and could lock the matrix after just a few approvals.
   useEffect(() => {
-    if (vessels.length > 0) {
-      setActiveVesselForMatrix(prev => (vessels.some(v => v.vessel_name === prev) ? prev : vessels[0].vessel_name));
-    }
-  }, [vessels]);
+    setSelectedSlotForApt(prev => {
+      const pendingIds = new Set(appointments.filter(a => a.status === 'pending').map(a => a.id));
+      const next = Object.fromEntries(Object.entries(prev).filter(([id]) => pendingIds.has(id)));
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+    });
+  }, [appointments]);
+
+  const findVessel = (name: string) => vessels.find(v => normalizeName(v.vessel_name) === normalizeName(name));
+
+  const isCommitted = (status: any) => status === 'approved' || status === 'inside';
+
+  const allocationMatchesMode = (a: any, targetMode: MatrixMode) =>
+    targetMode === 'deck' ? isDeckAllocation(a) : !isDeckAllocation(a);
 
   const inMatrixScope = (a: any, mode: MatrixMode, target: string) => mode === 'deck'
-    ? a.vessel_name === target
-    : (a.assigned_berth || DEFAULT_MAIN_BERTH) === target;
+    ? normalizeName(a.vessel_name) === normalizeName(target)
+    : normalizeBerth(a.assigned_berth || DEFAULT_MAIN_BERTH) === normalizeBerth(target);
 
   const getMatrixCapacity = (mode: MatrixMode, target: string) => {
     if (mode === 'yard') return YARD_CAPACITY;
-    const vessel = vessels.find(v => v.vessel_name === target);
+    const vessel = findVessel(target);
     return Math.min(Number(vessel?.max_trucks) || DEFAULT_DECK_CAPACITY, MAX_GRID_SLOTS);
   };
 
   const handleDecision = async (id: string, newStatus: string) => {
     const hold = selectedSlotForApt[id];
+    const apt = appointments.find(a => a.id === id);
+
     if (newStatus === 'approved' && !hold) {
       setToastMsg('Error: Please select an empty bay on the allocation matrix before approving.');
       return;
@@ -106,27 +136,51 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
     let adminNotes = newStatus === 'rejected' ? 'Manifest rejected by Port Authority.' : '';
 
     if (newStatus === 'approved' && hold) {
+      if (hold.mode === 'deck' && apt && normalizeName(apt.vessel_name) !== normalizeName(hold.target)) {
+        setToastMsg(`This clearance is booked on ${apt.vessel_name}. Open its own RoRo deck to allocate a slot.`);
+        return;
+      }
+
       const capacity = getMatrixCapacity(hold.mode, hold.target);
       const committed = appointments.filter(a =>
-        a.id !== id && (a.status === 'approved' || a.status === 'inside') && inMatrixScope(a, hold.mode, hold.target)
+        a.id !== id &&
+        isCommitted(a.status) &&
+        a.assigned_slot &&
+        allocationMatchesMode(a, hold.mode) &&
+        inMatrixScope(a, hold.mode, hold.target)
       ).length;
 
       if (committed >= capacity) {
         setToastMsg(`OVERBOOKING PREVENTED: ${hold.target} is already at ${committed}/${capacity} capacity.`);
         return;
       }
+
+      const bookedVessel = apt ? findVessel(apt.vessel_name) : findVessel(hold.target);
       assignedBerth = hold.mode === 'yard'
-        ? hold.target
-        : (vessels.find(v => v.vessel_name === hold.target)?.berth || hold.target);
-      adminNotes = `Proceed to ${assignedBerth} | ${slotLabel(hold.lane, hold.slot)}${hold.mode === 'deck' ? ` | Vessel Deck (${hold.target})` : ''}`;
+        ? normalizeBerth(hold.target)
+        : normalizeBerth(bookedVessel?.berth || DEFAULT_MAIN_BERTH);
+      adminNotes = `Proceed to ${assignedBerth} | ${slotLabel(hold.lane, hold.slot)}${hold.mode === 'deck' ? ` | Vessel Deck (${bookedVessel?.vessel_name || hold.target})` : ''}`;
     }
 
-    await supabase.from('appointments').update({
+    const { error } = await supabase.from('appointments').update({
       status: newStatus,
       assigned_berth: newStatus === 'approved' ? assignedBerth : null,
       assigned_slot: newStatus === 'approved' && hold ? hold.slotId : null,
       admin_notes: adminNotes
     }).eq('id', id);
+
+    if (error) {
+      setToastMsg(`Update failed: ${error.message}`);
+      return;
+    }
+
+    setSelectedSlotForApt(prev => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    await loadAll();
 
     setToastMsg(newStatus === 'approved'
       ? `Approved | routed to ${slotLabel(hold!.lane, hold!.slot)} at ${assignedBerth}`
@@ -147,52 +201,74 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
 
   const renderAllocationMatrix = (apt: any) => {
     const mode = matrixMode;
-    const target = mode === 'yard' ? activeBerthForMatrix : activeVesselForMatrix;
+    const bookedVessel = findVessel(apt.vessel_name);
+    // A deck allocation always belongs to the vessel on the booking. Pinning
+    // the target here prevents a Starlite truck from being placed on another
+    // ship's deck (which made the slot disappear from both decks).
+    const target = mode === 'yard'
+      ? activeBerthForMatrix
+      : (bookedVessel?.vessel_name || String(apt.vessel_name || '').trim() || DEFAULT_VESSEL_NAME);
     const capacity = getMatrixCapacity(mode, target);
     const scopeApts = appointments.filter(a => inMatrixScope(a, mode, target));
-    const committed = scopeApts.filter(a => a.status === 'approved' || a.status === 'inside').length;
-    
-    const selfHold = selectedSlotForApt[apt.id];
-    const heldByOthers = Object.entries(selectedSlotForApt).filter(([aptId, h]) => aptId !== apt.id && h.mode === mode && h.target === target).length;
-    
+    const committed = scopeApts.filter(a =>
+      isCommitted(a.status) && a.assigned_slot && allocationMatchesMode(a, mode)
+    ).length;
+
+    const pendingIds = new Set(appointments.filter(a => a.status === 'pending').map(a => a.id));
+    const holdsForTarget = Object.entries(selectedSlotForApt).filter(([aptId, h]) =>
+      h.mode === mode && h.target === target && pendingIds.has(aptId)
+    );
+    const selfHold = holdsForTarget.find(([aptId]) => aptId === apt.id)?.[1];
+    const rawHold = selectedSlotForApt[apt.id];
+    const heldByOthers = holdsForTarget.filter(([aptId]) => aptId !== apt.id).length;
+
     const available = capacity - committed - heldByOthers;
     const isFull = available <= 0;
     const lanes = buildLanes(capacity, mode === 'yard' ? YARD_SLOTS_PER_LANE : DECK_SLOTS_PER_LANE);
-    const pct = Math.min(100, Math.round((committed / capacity) * 100));
+    const pct = capacity > 0 ? Math.min(100, Math.round((committed / capacity) * 100)) : 0;
 
     // Weight-balance (RoRo deck): port (left) vs starboard (right) tonnage.
+    // Only actual deck allocations count; a truck parked in the yard is not on
+    // the vessel yet and must not skew the deck trim.
     const incomingWeight = Number(apt.cargo_weight_tons) || 5;
     let leftWeight = 0;
     let rightWeight = 0;
     if (mode === 'deck') {
-      scopeApts.filter(a => (a.status === 'approved' || a.status === 'inside') && a.assigned_slot).forEach(a => {
+      scopeApts.filter(a => isCommitted(a.status) && a.assigned_slot && isDeckAllocation(a)).forEach(a => {
         const num = parseInt(String(a.assigned_slot).replace(/[^0-9]/g, ''), 10) || 0;
         const w = Number(a.cargo_weight_tons) || 5;
         if (num <= 3) leftWeight += w; else rightWeight += w;
       });
     }
+    const balanceTolerance = Math.max(5, (leftWeight + rightWeight) * 0.25);
+    const isBalanced = Math.abs(leftWeight - rightWeight) <= balanceTolerance;
     const isBalanceLocked = (slotNum: number) => {
       if (mode !== 'deck') return false;
-      const self = slotNum <= 3 ? leftWeight : rightWeight;
-      const other = slotNum <= 3 ? rightWeight : leftWeight;
-      const currentDiff = Math.abs(leftWeight - rightWeight);
-      const newSelf = self + incomingWeight;
-      const newDiff = Math.abs(newSelf - other);
-      const total = newSelf + other;
-      const allowed = Math.max(5, total * 0.25);
-      // Allow placements that improve (or keep) balance; lock only if they worsen it beyond tolerance.
-      if (newDiff <= currentDiff) return false;
-      return newDiff > allowed;
+
+      const placingPortSide = slotNum <= 3;
+      const sameSideWeight = placingPortSide ? leftWeight : rightWeight;
+      const otherSideWeight = placingPortSide ? rightWeight : leftWeight;
+
+      // Loading the lighter (or equally loaded) side always improves trim and
+      // must stay available. This includes the first truck on an empty deck;
+      // otherwise any truck over 5t would lock every slot on the vessel.
+      if (sameSideWeight <= otherSideWeight) return false;
+
+      const projectedDiff = Math.abs(sameSideWeight + incomingWeight - otherSideWeight);
+      const projectedTotal = leftWeight + rightWeight + incomingWeight;
+      const tolerance = Math.max(5, projectedTotal * 0.25);
+      return projectedDiff > tolerance;
     };
 
     const pickSlot = (lane: string, slot: number) => {
-      const slotId = `${lane}${slot}`;
+      const slotId = normalizeSlotId(`${lane}${slot}`);
       if (isFull && slotId !== selfHold?.slotId) {
         setToastMsg(`CAPACITY LOCK: ${target} is full (${committed}/${capacity}). Overbooking prevented.`);
         return;
       }
       if (isBalanceLocked(slot)) {
-        setToastMsg(`BALANCE LOCK: this side is too heavy; slot unavailable to keep the vessel trimmed.`);
+        const heavySide = slot <= 3 ? 'port (left)' : 'starboard (right)';
+        setToastMsg(`BALANCE LOCK: the ${heavySide} side is heavier. Pick a slot on the opposite side to keep the vessel trimmed.`);
         return;
       }
       setSelectedSlotForApt(prev => ({ ...prev, [apt.id]: { slotId, lane, slot, mode, target } }));
@@ -215,11 +291,14 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
             {BERTH_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
           </select>
         ) : (
-          <select className="modern-input" value={activeVesselForMatrix} onChange={e => setActiveVesselForMatrix(e.target.value)} style={{ padding: '8px 12px', fontSize: '12px', marginBottom: '8px' }}>
-            {vessels.length > 0
-              ? vessels.map(v => <option key={v.id} value={v.vessel_name}>{v.vessel_name} | {v.route || 'RoRo Route'} ({v.max_trucks || DEFAULT_DECK_CAPACITY} slots)</option>)
-              : <option value="MV Starlite Calapan">MV Starlite Calapan (30 slots)</option>}
-          </select>
+          <div className="modern-input" style={{ padding: '8px 12px', fontSize: '12px', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <Ship size={13} style={{ verticalAlign: 'middle', marginRight: '5px', color: '#38bdf8' }} />
+              {bookedVessel?.vessel_name || apt.vessel_name}
+              {bookedVessel?.route ? <span style={{ color: '#94a3b8' }}> | {bookedVessel.route}</span> : null}
+            </span>
+            <span style={{ color: '#94a3b8', flexShrink: 0 }}>{capacity} slots</span>
+          </div>
         )}
 
         <div className="matrix-capacity">
@@ -234,8 +313,8 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
             <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
               <span>Port (Left): <strong style={{ color: '#38bdf8' }}>{leftWeight.toFixed(1)}t</strong></span>
               <span>Starboard (Right): <strong style={{ color: '#38bdf8' }}>{rightWeight.toFixed(1)}t</strong></span>
-              <span style={{ color: Math.abs(leftWeight - rightWeight) > 5 ? '#f87171' : '#34d399', fontWeight: 700 }}>
-                {Math.abs(leftWeight - rightWeight) > 5 ? 'IMBALANCED' : 'BALANCED'}
+              <span style={{ color: isBalanced ? '#34d399' : '#f87171', fontWeight: 700 }}>
+                {isBalanced ? 'BALANCED' : 'IMBALANCED'}
               </span>
             </div>
           )}
@@ -256,10 +335,14 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
             <div key={row.lane} className="matrix-row">
               <div className="matrix-lane-label">{row.lane}</div>
               {row.slots.map(slot => {
-                const slotId = `${row.lane}${slot}`;
-                const isOccupied = scopeApts.some(a => a.assigned_slot === slotId && (a.status === 'approved' || a.status === 'inside'));
-                const isHeldByOther = Object.entries(selectedSlotForApt).some(([aptId, h]) => aptId !== apt.id && h.slotId === slotId && h.mode === mode && h.target === target);
-                const isSelected = selfHold?.slotId === slotId && selfHold?.mode === mode && selfHold?.target === target;
+                const slotId = normalizeSlotId(`${row.lane}${slot}`);
+                const isOccupied = scopeApts.some(a =>
+                  normalizeSlotId(a.assigned_slot) === slotId &&
+                  isCommitted(a.status) &&
+                  (mode === 'deck' ? isDeckAllocation(a) : !isDeckAllocation(a))
+                );
+                const isHeldByOther = holdsForTarget.some(([aptId, h]) => aptId !== apt.id && h.slotId === slotId);
+                const isSelected = selfHold?.slotId === slotId;
                 const balanceLocked = isBalanceLocked(slot);
                 const cls = isOccupied ? 'slot-occupied' : isHeldByOther ? 'slot-held' : isSelected ? 'slot-selected' : (isFull || balanceLocked) ? 'slot-locked' : 'slot-empty';
 
@@ -268,7 +351,15 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
                     key={slotId}
                     className={`matrix-slot ${cls}`}
                     title={slotLabel(row.lane, slot)}
-                    onClick={() => { if (!isOccupied && !isHeldByOther && !balanceLocked) pickSlot(row.lane, slot); else if (balanceLocked) setToastMsg('BALANCE LOCK: this side is too heavy; slot unavailable to keep the vessel trimmed.'); }}
+                    onClick={() => {
+                      if (isOccupied || isHeldByOther) return;
+                      if (balanceLocked) {
+                        const heavySide = slot <= 3 ? 'port (left)' : 'starboard (right)';
+                        setToastMsg(`BALANCE LOCK: the ${heavySide} side is heavier. Pick a slot on the opposite side to keep the vessel trimmed.`);
+                        return;
+                      }
+                      pickSlot(row.lane, slot);
+                    }}
                   >
                     {slot}
                   </div>
@@ -289,6 +380,12 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
           <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 700, marginTop: '8px' }}>
             <MapPin size={12} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
             Locked: {selfHold.target} | {slotLabel(selfHold.lane, selfHold.slot)}
+          </div>
+        )}
+        {!selfHold && rawHold && (
+          <div style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 700, marginTop: '8px' }}>
+            <MapPin size={12} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+            Pending pick in {rawHold.mode === 'deck' ? 'RoRo deck' : 'terminal yard'}: {rawHold.target} | {slotLabel(rawHold.lane, rawHold.slot)}. Select a slot here to replace it.
           </div>
         )}
       </div>
@@ -312,7 +409,7 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
     const headers = ['Pass ID', 'Plate Number', 'Truck Type', 'Seal', 'Driver Name', 'Company', 'Vessel', 'Declared Tons', 'Berth', 'Slot', 'Status', 'Entry Time', 'Exit Time'];
     const rows = appointments.map(a => [
       a.id, a.plate_number, `"${a.truck_type || '10-Wheeler'}"`, a.container_seal || 'N/A', `"${a.driver_name}"`, `"${a.company_name}"`,
-      `"${a.vessel_name}"`, a.cargo_weight_tons || 5, `"${a.assigned_berth || ''}"`, a.assigned_slot || '', a.status,
+      `"${a.vessel_name}"`, a.cargo_weight_tons || 5, `"${normalizeBerth(a.assigned_berth)}"`, a.assigned_slot || '', a.status,
       a.entry_time ? new Date(a.entry_time).toISOString() : '', a.exit_time ? new Date(a.exit_time).toISOString() : ''
     ]);
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -339,7 +436,9 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
 
   const filteredList = appointments.filter(a => {
     const matchesTab = filter === 'all' || a.status === filter;
-    const matchesSearch = a.plate_number.toLowerCase().includes(searchQuery.toLowerCase()) || a.company_name.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = !q || [a.plate_number, a.company_name, a.vessel_name]
+      .some(value => String(value || '').toLowerCase().includes(q));
     return matchesTab && matchesSearch;
   });
 
@@ -422,7 +521,7 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
                 </div>
                 <div style={{ position: 'relative', minWidth: '260px', flex: '1', maxWidth: '380px' }}>
                   <Search size={16} color="#64748b" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
-                  <input className="modern-input" style={{ paddingLeft: '38px', paddingTop: '10px', paddingBottom: '10px' }} placeholder="Search plate or company..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                  <input className="modern-input" style={{ paddingLeft: '38px', paddingTop: '10px', paddingBottom: '10px' }} placeholder="Search plate, company, or vessel..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                 </div>
               </div>
 
@@ -451,7 +550,7 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
                       <span className="meta-tag"><Ship size={12} color="#38bdf8" /> {apt.vessel_name}</span>
                       <span className="meta-tag"><Scale size={12} color="#fbbf24" /> {apt.cargo_weight_tons}t</span>
                       <span className="meta-tag" style={{ color: isPaidStatus(apt.payment_status) ? '#34d399' : '#fbbf24' }}>PHP {apt.port_fee_php || 0} | {apt.payment_status || 'Unpaid'}</span>
-                      {apt.assigned_slot && <span className="meta-tag" style={{ color: '#38bdf8' }}><MapPin size={12} /> {apt.assigned_berth} (Slot {apt.assigned_slot})</span>}
+                      {apt.assigned_slot && <span className="meta-tag" style={{ color: '#38bdf8' }}><MapPin size={12} /> {normalizeBerth(apt.assigned_berth)} (Slot {apt.assigned_slot})</span>}
                     </div>
 
                     <div style={{ background: 'rgba(6, 11, 20, 0.55)', borderRadius: '12px', padding: '12px', fontSize: '13px', marginBottom: '14px' }}>
@@ -505,8 +604,13 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
             <div className="admin-cards-grid animate-enter">
               {vessels.map(v => {
                 const maxDeck = Math.min(Number(v.max_trucks) || DEFAULT_DECK_CAPACITY, MAX_GRID_SLOTS);
-                const pendingTrucks = appointments.filter(a => a.vessel_name === v.vessel_name && a.status === 'pending').length;
-                const bookedTrucks = appointments.filter(a => a.vessel_name === v.vessel_name && (a.status === 'approved' || a.status === 'inside')).length;
+                const pendingTrucks = appointments.filter(a => normalizeName(a.vessel_name) === normalizeName(v.vessel_name) && a.status === 'pending').length;
+                const bookedTrucks = appointments.filter(a =>
+                  normalizeName(a.vessel_name) === normalizeName(v.vessel_name) &&
+                  isCommitted(a.status) &&
+                  a.assigned_slot &&
+                  isDeckAllocation(a)
+                ).length;
                 const deckFull = bookedTrucks >= maxDeck;
                 const pct = Math.min(100, Math.round((bookedTrucks / maxDeck) * 100));
 
@@ -516,7 +620,7 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
                       <div>
                         <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>{v.route}</span>
                         <h3 style={{ margin: '4px 0', fontSize: '20px', fontWeight: 800 }}>{v.vessel_name}</h3>
-                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>{v.berth} | ETD: {v.etd}</div>
+                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>{normalizeBerth(v.berth)} | ETD: {v.etd}</div>
                       </div>
                       <span className={`status-pill ${v.status.includes('Delayed') ? 'status-rejected' : v.status.includes('Boarding') ? 'status-approved' : 'status-inside'}`}>{v.status}</span>
                     </div>
@@ -539,7 +643,7 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
                       {['Boarding Now', 'On Schedule', 'Delayed - Weather', 'Departed Pier'].map(st => (
                         <button key={st} onClick={() => updateVesselStatus(v.id, st)} style={{ background: v.status === st ? '#0ea5e9' : 'rgba(6, 11, 20, 0.7)', color: v.status === st ? '#fff' : '#94a3b8', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '6px 10px', fontSize: '11px', fontWeight: 700 }}>{st}</button>
                       ))}
-                      <button onClick={() => { setMatrixMode('deck'); setActiveVesselForMatrix(v.vessel_name); setActiveModule('queue'); setFilter('pending'); }} style={{ background: 'rgba(56, 189, 248, 0.14)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: '8px', padding: '6px 10px', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <button onClick={() => { setMatrixMode('deck'); setActiveModule('queue'); setFilter('pending'); setSearchQuery(v.vessel_name); }} style={{ background: 'rgba(56, 189, 248, 0.14)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: '8px', padding: '6px 10px', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
                         <Grid size={12} /> Open Deck Matrix
                       </button>
                     </div>
@@ -552,8 +656,8 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
           {activeModule === 'berths' && (
             <div className="admin-cards-grid animate-enter">
               {BERTH_OPTIONS.map((berth, i) => {
-                const dockedHere = appointments.filter(a => a.status === 'inside' && (a.assigned_berth || 'Pier 1 | RoRo Ramp A') === berth);
-                const enRouteHere = appointments.filter(a => a.status === 'approved' && (a.assigned_berth || 'Pier 1 | RoRo Ramp A') === berth);
+                const dockedHere = appointments.filter(a => a.status === 'inside' && normalizeBerth(a.assigned_berth || DEFAULT_MAIN_BERTH) === normalizeBerth(berth));
+                const enRouteHere = appointments.filter(a => a.status === 'approved' && normalizeBerth(a.assigned_berth || DEFAULT_MAIN_BERTH) === normalizeBerth(berth));
                 const maxCapacity = 10;
                 const occupancyPct = Math.min(100, Math.round((dockedHere.length / maxCapacity) * 100));
 
@@ -624,7 +728,7 @@ const Tab2: React.FC<Tab2Props> = ({ staffName, onLogout }) => {
                       <tr key={apt.id}>
                         <td><div style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 800, color: '#38bdf8' }}>{apt.plate_number}</div><div style={{ fontSize: '11px', color: '#94a3b8' }}>{apt.container_seal}</div></td>
                         <td><div style={{ fontWeight: 700 }}>{apt.driver_name}</div><div style={{ fontSize: '11px', color: '#94a3b8' }}>{apt.company_name}</div></td>
-                        <td><div>{apt.vessel_name}</div><div style={{ fontSize: '11px', color: '#38bdf8' }}>{apt.assigned_berth} (Slot {apt.assigned_slot || 'N/A'})</div></td>
+                        <td><div>{apt.vessel_name}</div><div style={{ fontSize: '11px', color: '#38bdf8' }}>{normalizeBerth(apt.assigned_berth)} (Slot {apt.assigned_slot || 'N/A'})</div></td>
                         <td>{apt.cargo_weight_tons || 5}t</td>
                         <td><span className={`status-pill status-${apt.status}`}>{apt.status}</span></td>
                         <td style={{ fontSize: '11px' }}><div>In: {apt.entry_time ? new Date(apt.entry_time).toLocaleTimeString() : ' '}</div><div>Out: {apt.exit_time ? new Date(apt.exit_time).toLocaleTimeString() : ' '}</div></td>
