@@ -85,6 +85,9 @@ const EMPTY_REGISTRATION: RegistrationForm = {
 const PIN_PATTERN = /^\d{6}$/;
 const LOCK_THRESHOLD = 3;
 
+/** Vite's BASE_URL is "/" locally and "/Ionic-Project/" on GitHub Pages. */
+const ROUTER_BASENAME = import.meta.env.BASE_URL.replace(/\/$/, '') || '/';
+
 const digitsOnly = (value?: string | null) => (value ?? '').replace(/\D/g, '').slice(0, 6);
 
 const describeAuthError = (result: AuthRpcResponse): string => {
@@ -532,13 +535,13 @@ const App: React.FC = () => {
      * redirect rather than a stale portal path from the previous user.
      */
     if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', '/');
+      window.history.replaceState(null, '', import.meta.env.BASE_URL);
     }
   };
 
   /* --------------------- ROLE-SCOPED PORTALS ----------------------- */
   const renderAuthenticatedApp = (session: AuthUser) => (
-    <IonReactRouter>
+    <IonReactRouter basename={ROUTER_BASENAME}>
       <IonRouterOutlet>
         <Routes>
           <Route
